@@ -49,5 +49,19 @@ namespace Crawler.API.Services
                 return await client.GetStringAsync(url);
             }
         }
+
+        public async Task<TOut> Post<TIn, TOut>(string url, TIn data)
+        {
+            using (var client = Create())
+            {
+                var response = await client.PostAsync<TIn>(url, data, null);
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    return JsonConvert.DeserializeObject<TOut>(content);
+                }
+                return default(TOut);
+            }
+        }
     }
 }

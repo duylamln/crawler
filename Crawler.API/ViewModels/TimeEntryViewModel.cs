@@ -4,7 +4,12 @@ namespace Crawler.API.ViewModels
 {
     public class TimeEntryViewModel
     {
-        public long PojectId { get; set; }
+        public TimeEntryViewModel()
+        {
+            ProjectId = 2;
+            ActivityId = 6;
+        }
+        public long ProjectId { get; set; }
         public long ActivityId { get; set; }
         public long WorkPackageId { get; set; }
         public decimal Hours { get; set; }

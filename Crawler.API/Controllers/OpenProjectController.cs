@@ -71,11 +71,13 @@ namespace Crawler.API.Controllers
 
             return Ok(openedVersionCollection);
         }
-
+        private static CollectionViewModel<VersionViewModel> _myVersionsCache = null;
         //https://travel2pay.openproject.com/api/v3/projects/2/work_packages?pageSize=1000&offset=1&filters=[{"status":{"operator":"o","values":[]}},{"version":{"operator":"=","values":["922"]}}]&sortBy=[["parent","asc"]]
         [Route("api/openproject/myworkpackages")]
         public async Task<IHttpActionResult> GetMyWorkPackages()
         {
+            if (_myVersionsCache != null) return Ok(_myVersionsCache);
+
             var bubbleTeamOpenedVersions = await GetBubbleTeamOpenedVersions();
 
             var versions = new CollectionViewModel<VersionViewModel>();
@@ -90,7 +92,7 @@ namespace Crawler.API.Controllers
                     WorkPackages = workPackageByVersion.ToList()
                 });
             }
-
+            _myVersionsCache = versions;
             return Ok(versions);
         }
 
@@ -128,9 +130,22 @@ namespace Crawler.API.Controllers
         [Route("api/openproject/createtimeentry")]
         public async Task<IHttpActionResult> CreateTimeEntry(TimeEntryViewModel model)
         {
-            
+            var url = "";
+            var createTimeEntryRequest = new OPCreateTimeEntryRequest()
+            {
+                Comment = model.Comment,
+                Hours = $"PT{model.Hours}H",
+                Links = new OPCreateTimeEntryModelLink()
+                {
+                    Activity = new OPCreateTimeEntryModelActivity { Href = $"/api/v3/time_entries/activities/{model.ActivityId}" },
+                    Project = new OPCreateTimeEntryModelProject { Href = "/api/v3/projects/2" },
+                    WorkPackage = new OPCreateTimeEntryModelWorkPackage { Href = $"/api/v3/work_packages/{model.WorkPackageId}" }
+                },
+                SpentOn = model.SpentOn.ToString("yyyy-MM-dd")
+            };
+            var timeEntry = await httpClientService.Post<OPCreateTimeEntryRequest, OpCreateTimeEntryResponse>(url, createTimeEntryRequest);
 
-            return Ok();
+            return Ok(timeEntry);
         }
 
 
