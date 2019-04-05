@@ -37,14 +37,7 @@ namespace Crawler.API.Controllers
             var projects = await httpClientService.Get<OPCollection<Project>>("https://travel2pay.openproject.com/api/v3/projects");
             return Ok(projects);
         }
-
-        [Route("api/openproject/versions")]
-        public async Task<IHttpActionResult> GetVersions()
-        {
-            var versions = await httpClientService.Get<OPCollection<OPVersion>>("https://travel2pay.openproject.com/api/v3/versions");
-            return Ok(versions);
-        }
-
+        
         [Route("api/openproject/versions/{id}")]
         public async Task<IHttpActionResult> GetVersion(int id)
         {
@@ -71,13 +64,27 @@ namespace Crawler.API.Controllers
 
             return Ok(openedVersionCollection);
         }
-        private static CollectionViewModel<VersionViewModel> _myVersionsCache = null;
+        private static CollectionViewModel<VersionViewModel> _versionsCache = null;
         //https://travel2pay.openproject.com/api/v3/projects/2/work_packages?pageSize=1000&offset=1&filters=[{"status":{"operator":"o","values":[]}},{"version":{"operator":"=","values":["922"]}}]&sortBy=[["parent","asc"]]
-        [Route("api/openproject/myworkpackages")]
-        public async Task<IHttpActionResult> GetMyWorkPackages()
+        [Route("api/openproject/versions")]
+        public async Task<IHttpActionResult> GetVersions()
         {
-            if (_myVersionsCache != null) return Ok(_myVersionsCache);
+            if (_versionsCache != null) return Ok(_versionsCache);
+            CollectionViewModel<VersionViewModel> versions = await GetMyVersions();
+            _versionsCache = versions;
+            return Ok(versions);
+        }
 
+        [Route("api/openproject/reloadversions")]
+        [HttpGet]
+        public async Task<IHttpActionResult> ReloadVersions()
+        {
+            _versionsCache = null;
+            return await GetVersions();
+        }
+
+        private async Task<CollectionViewModel<VersionViewModel>> GetMyVersions()
+        {
             var bubbleTeamOpenedVersions = await GetBubbleTeamOpenedVersions();
 
             var versions = new CollectionViewModel<VersionViewModel>();
@@ -92,8 +99,8 @@ namespace Crawler.API.Controllers
                     WorkPackages = workPackageByVersion.ToList()
                 });
             }
-            _myVersionsCache = versions;
-            return Ok(versions);
+
+            return versions;
         }
 
         [Route("api/openproject/timeentryactivities")]
@@ -128,9 +135,10 @@ namespace Crawler.API.Controllers
 
 
         [Route("api/openproject/createtimeentry")]
+        [HttpPost]
         public async Task<IHttpActionResult> CreateTimeEntry(TimeEntryViewModel model)
         {
-            var url = "";
+            var url = "https://travel2pay.openproject.com/api/v3/time_entries";
             var createTimeEntryRequest = new OPCreateTimeEntryRequest()
             {
                 Comment = model.Comment,
@@ -144,6 +152,28 @@ namespace Crawler.API.Controllers
                 SpentOn = model.SpentOn.ToString("yyyy-MM-dd")
             };
             var timeEntry = await httpClientService.Post<OPCreateTimeEntryRequest, OpCreateTimeEntryResponse>(url, createTimeEntryRequest);
+
+            return Ok(timeEntry);
+        }
+
+        [Route("api/openproject/updatetimeentry")]
+        [HttpPost]
+        public async Task<IHttpActionResult> UpdateTimeEntry(TimeEntryViewModel model)
+        {
+            var url = "https://travel2pay.openproject.com/api/v3/time_entries/" + model.Id;
+            var createTimeEntryRequest = new OPCreateTimeEntryRequest()
+            {
+                Comment = model.Comment,
+                Hours = $"PT{model.Hours}H",
+                Links = new OPCreateTimeEntryModelLink()
+                {
+                    Activity = new OPCreateTimeEntryModelActivity { Href = $"/api/v3/time_entries/activities/{model.ActivityId}" },
+                    Project = new OPCreateTimeEntryModelProject { Href = "/api/v3/projects/2" },
+                    WorkPackage = new OPCreateTimeEntryModelWorkPackage { Href = $"/api/v3/work_packages/{model.WorkPackageId}" }
+                },
+                SpentOn = model.SpentOn.ToString("yyyy-MM-dd")
+            };
+            var timeEntry = await httpClientService.Patch<OPCreateTimeEntryRequest, OpCreateTimeEntryResponse>(url, createTimeEntryRequest);
 
             return Ok(timeEntry);
         }

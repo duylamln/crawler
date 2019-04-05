@@ -9,6 +9,7 @@ namespace Crawler.API.ViewModels
             ProjectId = 2;
             ActivityId = 6;
         }
+        public long Id { get; set; }
         public long ProjectId { get; set; }
         public long ActivityId { get; set; }
         public long WorkPackageId { get; set; }

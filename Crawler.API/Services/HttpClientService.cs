@@ -2,9 +2,11 @@
 using Newtonsoft.Json;
 using System;
 using System.Net.Http;
+using System.Net.Http.Formatting;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+
 
 namespace Crawler.API.Services
 {
@@ -50,11 +52,31 @@ namespace Crawler.API.Services
             }
         }
 
+        public async Task<TOut> Patch<TIn, TOut>(string url, TIn data)
+        {
+            using (var client = Create())
+            {
+                var method = new HttpMethod("PATCH");
+                var request = new HttpRequestMessage(method, url)
+                {
+                    Content = new ObjectContent<TIn>(data, new JsonMediaTypeFormatter())
+                };
+
+                var response = await client.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    return JsonConvert.DeserializeObject<TOut>(content);
+                }
+                return default(TOut);
+            }
+        }
+
         public async Task<TOut> Post<TIn, TOut>(string url, TIn data)
         {
             using (var client = Create())
             {
-                var response = await client.PostAsync<TIn>(url, data, null);
+                var response = await client.PostAsJsonAsync(url, data);
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync();
