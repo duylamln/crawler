@@ -64,23 +64,13 @@ namespace Crawler.API.Controllers
 
             return Ok(openedVersionCollection);
         }
-        private static CollectionViewModel<VersionViewModel> _versionsCache = null;
+        
         //https://travel2pay.openproject.com/api/v3/projects/2/work_packages?pageSize=1000&offset=1&filters=[{"status":{"operator":"o","values":[]}},{"version":{"operator":"=","values":["922"]}}]&sortBy=[["parent","asc"]]
         [Route("api/openproject/versions")]
         public async Task<IHttpActionResult> GetVersions()
         {
-            if (_versionsCache != null) return Ok(_versionsCache);
             CollectionViewModel<VersionViewModel> versions = await GetMyVersions();
-            _versionsCache = versions;
             return Ok(versions);
-        }
-
-        [Route("api/openproject/reloadversions")]
-        [HttpGet]
-        public async Task<IHttpActionResult> ReloadVersions()
-        {
-            _versionsCache = null;
-            return await GetVersions();
         }
 
         private async Task<CollectionViewModel<VersionViewModel>> GetMyVersions()
@@ -176,6 +166,15 @@ namespace Crawler.API.Controllers
             var timeEntry = await httpClientService.Patch<OPCreateTimeEntryRequest, OpCreateTimeEntryResponse>(url, createTimeEntryRequest);
 
             return Ok(timeEntry);
+        }
+
+        [Route("api/openproject/deletetimeentry/{id}")]
+        [HttpDelete]
+        public async Task<IHttpActionResult> DeleteTimeEntry(long id)
+        {
+            var url = "https://travel2pay.openproject.com/api/v3/time_entries/" + id;
+            var result = await httpClientService.Delete(url);
+            return Ok(result);
         }
 
 

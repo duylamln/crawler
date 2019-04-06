@@ -22,6 +22,14 @@ namespace Crawler.API.Services
             return client;
         }
 
+        public async Task<HttpResponseMessage> Delete(string url)
+        {
+            using (var client = Create())
+            {
+                return await client.DeleteAsync(url);
+            }
+        }
+
         public async Task<HttpResponseMessage> Get(string url)
         {
             using (var client = Create())
