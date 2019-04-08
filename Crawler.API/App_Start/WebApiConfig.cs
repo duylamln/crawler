@@ -14,6 +14,7 @@ namespace Crawler.API
             // Web API configuration and services
             var cors = new EnableCorsAttribute("http://localhost", "*", "*");
             cors.Origins.Add("https://duylamln.github.io");
+            cors.Origins.Add("http://duylamln.github.io");
 
             config.EnableCors(cors);
 
