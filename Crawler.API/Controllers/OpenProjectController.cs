@@ -12,9 +12,15 @@ namespace Crawler.API.Controllers
     public class OpenProjectController : ApiController
     {
         private readonly IHttpClientService httpClientService;
+        private readonly DateTime _today;
+        private readonly DateTime _last2Week;
+        private readonly DateTime _next2week;
         public OpenProjectController(IHttpClientService httpClientService)
         {
             this.httpClientService = httpClientService;
+            _today = DateTime.Now;
+            _last2Week = _today.AddDays(-14).Date + new TimeSpan(0, 0, 0);
+            _next2week = _today.AddDays(28).Date + new TimeSpan(23, 59, 59);
         }
 
         [Route("api/openproject/users")]
@@ -37,7 +43,7 @@ namespace Crawler.API.Controllers
             var projects = await httpClientService.Get<OPCollection<Project>>("https://travel2pay.openproject.com/api/v3/projects");
             return Ok(projects);
         }
-        
+
         [Route("api/openproject/versions/{id}")]
         public async Task<IHttpActionResult> GetVersion(int id)
         {
@@ -64,7 +70,7 @@ namespace Crawler.API.Controllers
 
             return Ok(openedVersionCollection);
         }
-        
+
         //https://travel2pay.openproject.com/api/v3/projects/2/work_packages?pageSize=1000&offset=1&filters=[{"status":{"operator":"o","values":[]}},{"version":{"operator":"=","values":["922"]}}]&sortBy=[["parent","asc"]]
         [Route("api/openproject/versions")]
         public async Task<IHttpActionResult> GetVersions()
@@ -214,11 +220,31 @@ namespace Crawler.API.Controllers
         private async Task<List<OPVersion>> GetBubbleTeamOpenedVersions()
         {
             var versions = await httpClientService.Get<OPCollection<OPVersion>>("https://travel2pay.openproject.com/api/v3/versions");
-            return versions.Embedded.Elements
-                .Where(x => x.Status == "open" && x.Name.StartsWith("Team Bubble"))
-                .OrderByDescending(x => x.Id)
-                .Take(5)
+            var result = versions.Embedded.Elements
+                //.Where(x => x.Status == "open" && x.Name.StartsWith("Team Bubble"))
+                .Where(x => x.Status == "open")
+                .Where(SameTime)
+                .OrderBy(x => x.Name)
+                .ThenBy(x => x.Id)
+                .Take(20)
                 .ToList();
+            var today = DateTime.Now;
+
+            return result;
+        }
+
+        private bool SameTime(OPVersion version)
+        {
+            var name = version.Name;
+            var lastSpaceIndex = name.Trim().LastIndexOf(' ');
+            if (lastSpaceIndex == -1) return false;
+            var versionDateStr = name.Substring(name.Trim().LastIndexOf(' '));
+            if (!DateTime.TryParse(versionDateStr, out DateTime versionDate)) return false;
+
+            if ((_last2Week < versionDate) && (versionDate < _next2week)) return true;
+
+            return false;
+
         }
     }
 }
