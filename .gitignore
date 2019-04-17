@@ -3,3 +3,4 @@ Crawler.API/obj/
 packages/
 .vs/
 Crawler.API/Crawler.API.csproj.user
+/Crawler.API/log/log.txt

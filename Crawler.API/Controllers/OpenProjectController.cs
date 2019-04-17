@@ -3,6 +3,8 @@ using Crawler.API.Models.OpenProjectModels;
 using Crawler.API.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Web.Http;
@@ -15,12 +17,21 @@ namespace Crawler.API.Controllers
         private readonly DateTime _today;
         private readonly DateTime _last2Week;
         private readonly DateTime _next2week;
+
+        private readonly string _logFileFolder = @"log";
+        private readonly string _logFilePath = @"log.txt";
+
+        static readonly object _object = new object();
+
         public OpenProjectController(IHttpClientService httpClientService)
         {
             this.httpClientService = httpClientService;
             _today = DateTime.Now;
             _last2Week = _today.AddDays(-14).Date + new TimeSpan(0, 0, 0);
             _next2week = _today.AddDays(28).Date + new TimeSpan(23, 59, 59);
+            _logFileFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _logFileFolder);
+            if (!Directory.Exists(_logFilePath)) Directory.CreateDirectory(_logFileFolder);
+            _logFilePath = Path.Combine(_logFileFolder, _logFilePath);
         }
 
         [Route("api/openproject/users")]
@@ -81,22 +92,48 @@ namespace Crawler.API.Controllers
 
         private async Task<CollectionViewModel<VersionViewModel>> GetMyVersions()
         {
-            var bubbleTeamOpenedVersions = await GetBubbleTeamOpenedVersions();
+            var sw = Stopwatch.StartNew();
+
+            var openVersions = await GetOpenedVersions();
+
+            WriteText($"Get open versions", sw.ElapsedMilliseconds);
 
             var versions = new CollectionViewModel<VersionViewModel>();
-            foreach (var version in bubbleTeamOpenedVersions)
+            var tasks = new List<Task>();
+            foreach (var version in openVersions)
             {
-                var workPackageByVersion = await GetWorkPackageByVersion(version);
-                workPackageByVersion = CombineParentPackage(workPackageByVersion);
-                versions.Elements.Add(new VersionViewModel
-                {
-                    Id = version.Id,
-                    Title = version.Name,
-                    WorkPackages = workPackageByVersion.ToList()
-                });
+                tasks.Add(Task.Run(() => GetWorkpackagesByVersion(versions, version)));
             }
 
+            Task.WaitAll(tasks.ToArray());
+
+            versions.Elements = versions.Elements.OrderBy(x => x.Title).ThenBy(x => x.Id).ToList();
             return versions;
+        }
+
+        private async Task GetWorkpackagesByVersion(CollectionViewModel<VersionViewModel> versions, OPVersion version)
+        {
+            var sw = Stopwatch.StartNew();
+            WriteText($"Get workpackages of version [{version.Name}] Start", 0);
+            var workPackageByVersion = await GetWorkPackageByVersion(version);
+
+            WriteText($"Get workpackages of version [{version.Name}] End", sw.ElapsedMilliseconds);
+
+            workPackageByVersion = CombineParentPackage(workPackageByVersion);
+            versions.Elements.Add(new VersionViewModel
+            {
+                Id = version.Id,
+                Title = version.Name,
+                WorkPackages = workPackageByVersion.ToList()
+            });
+        }
+
+        private void WriteText(string s, long elapsed)
+        {
+            lock (_object)
+            {
+                File.AppendAllText(_logFilePath, s.PadRight(100, '.') + ":" + elapsed + "ms" + Environment.NewLine);
+            }
         }
 
         [Route("api/openproject/timeentryactivities")]
@@ -187,11 +224,21 @@ namespace Crawler.API.Controllers
         /*-------------------------------------private------------------------------------------------*/
         private IEnumerable<WorkPackage> CombineParentPackage(IEnumerable<WorkPackage> workPackageByVersion)
         {
+            var workPackageByVersionIds = workPackageByVersion.Select(x => x.Id);
             var parentWorkPackages = workPackageByVersion.Where(x => !x.ParentId.HasValue);
+            var parentWorkPakageIds = parentWorkPackages.Select(x => x.Id);
+
             var childrentWorkPackages = workPackageByVersion.Where(x => x.ParentId.HasValue);
             var result = new List<WorkPackage>();
+
             result.AddRange(parentWorkPackages);
+            result.AddRange(workPackageByVersion
+                .Where(x => x.ParentId.HasValue)
+                .Where(x => !workPackageByVersionIds.Contains(x.ParentId.Value))
+            );
+
             result.ForEach(parent => parent.Children.AddRange(childrentWorkPackages.Where(x => x.ParentId.Value == parent.Id)));
+
             return result;
         }
 
@@ -217,12 +264,13 @@ namespace Crawler.API.Controllers
             return long.Parse(str.Substring(str.LastIndexOf("/") + 1));
         }
 
-        private async Task<List<OPVersion>> GetBubbleTeamOpenedVersions()
+        private async Task<List<OPVersion>> GetOpenedVersions()
         {
             var versions = await httpClientService.Get<OPCollection<OPVersion>>("https://travel2pay.openproject.com/api/v3/versions");
             var result = versions.Embedded.Elements
                 //.Where(x => x.Status == "open" && x.Name.StartsWith("Team Bubble"))
                 .Where(x => x.Status == "open")
+                //.Where(x => x.Name.StartsWith("Team Genius"))
                 .Where(SameTime)
                 .OrderBy(x => x.Name)
                 .ThenBy(x => x.Id)
