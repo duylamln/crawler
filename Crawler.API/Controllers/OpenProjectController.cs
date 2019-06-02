@@ -268,8 +268,8 @@ namespace Crawler.API.Controllers
         {
             var versions = await httpClientService.Get<OPCollection<OPVersion>>("https://travel2pay.openproject.com/api/v3/versions");
             var result = versions.Embedded.Elements
-                //.Where(x => x.Status == "open" && x.Name.StartsWith("Team Bubble"))
-                .Where(x => x.Status == "open")
+                .Where(x => x.Status == "open" && x.Name.StartsWith("Team Bubble"))
+                //.Where(x => x.Status == "open")
                 //.Where(x => x.Name.StartsWith("Team Genius"))
                 .Where(SameTime)
                 .OrderBy(x => x.Name)
